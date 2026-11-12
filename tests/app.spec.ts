@@ -14,7 +14,7 @@ test('partida real, motor, guardado, deshacer, recuperación y exportación', as
  await page.getByRole('button',{name:'Recuperar la apertura'}).click(); await page.getByRole('button',{name:'Continuar'}).click();
  await expect(page.getByText('Re8',{exact:true})).toBeVisible();
  const download = page.waitForEvent('download'); await page.getByRole('button',{name:'Exportar PGN'}).click();
- expect((await download).suggestedFilename()).toBe('chess-coach.pgn');
+ expect((await download).suggestedFilename()).toMatch(/^chess-coach-\d{4}-\d{2}-\d{2}-\d{4}\.pgn$/);
  await page.reload(); await expect(page.getByText('Re8',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Nueva partida'}).click(); await page.getByRole('button',{name:'Continuar'}).click();
  await expect(page.getByText('Tu primera jugada abre el camino.')).toBeVisible();

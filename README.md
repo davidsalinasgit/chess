@@ -32,7 +32,7 @@ npm run build
 npm run preview
 ```
 
-Publicar **todo `dist/`** en un alojamiento estático (Netlify, Vercel, Cloudflare Pages o un servidor HTTP). Comando de build: `npm run build`; directorio de salida: `dist`. Vite usa rutas relativas para permitir subdirectorios. Servir `.wasm` con `Content-Type: application/wasm` y `.js` como JavaScript; no convertir peticiones de `/stockfish/*` en el HTML principal. El motor de un hilo no requiere encabezados COOP/COEP. Para una CSP propia permitir `worker-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'` y los estilos inline usados por el tablero.
+Para las funciones gratuitas, publicar **todo `dist/`** en un alojamiento estático (Netlify, Vercel, Cloudflare Pages o un servidor HTTP). Comando de build: `npm run build`; directorio de salida: `dist`. Vite usa rutas relativas para permitir subdirectorios. Servir `.wasm` con `Content-Type: application/wasm` y `.js` como JavaScript; no convertir peticiones de `/stockfish/*` en el HTML principal. El motor de un hilo no requiere encabezados COOP/COEP. Para una CSP propia permitir `worker-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'` y los estilos inline usados por el tablero.
 
 La partida se guarda en `localStorage` del navegador y origen actuales. Se conserva PGN, FEN y dificultad; se reconstruye el historial para mantener reglas como la repetición. Si el almacenamiento falla aparece un aviso; exportar PGN permite conservar la partida fuera del navegador. El modo privado o borrar los datos puede eliminarla. Deshacer elimina la última jugada blanca y la respuesta negra, o solo la blanca si el motor aún calcula. Cambiar de dificultad cancela la búsqueda y la reinicia al nivel elegido (0–20, sin equivalencia garantizada a Elo). El fallo del motor ofrece reintento y nunca inventa una respuesta.
 
@@ -46,14 +46,14 @@ r2qr1k1/2p1bppp/p1np1n2/1p2p2b/3PP3/1BP2N1P/PP1N1PP1/R1BQR1K1 w - - 3 12
 
 La prueba automatizada confirma la coincidencia; juegan blancas en el movimiento 12. Nueva partida y recuperación piden confirmación antes de reemplazar la partida guardada. El historial usa SAN internacional para mantener compatibilidad PGN; la interfaz explica las letras de piezas en español.
 
-## Arquitectura y siguiente etapa
+## Arquitectura
 
 - `src/game.ts`: reglas, apertura, persistencia y estados de partida.
 - `src/engine.ts`: protocolo UCI y ciclo de vida del Worker. Cada búsqueda tiene su propio Worker y límite de 30 segundos; se termina al deshacer, cambiar partida o dificultad para descartar respuestas antiguas.
 - `src/main.tsx`: interacción, promoción, historial y controles.
 - `src/coach.ts`: contrato `CoachService`, petición con PGN/FEN/última jugada e idioma y respuesta con explicación, errores y sugerencias; adaptador HTTP `ServerCoach` preparado para `POST /api/coach`.
 
-El entrenador todavía no está conectado ni existe ese endpoint. En la segunda etapa implementar un servidor que valide los datos, limite tamaño y frecuencia, autentique según el despliegue y llame a OpenAI con `OPENAI_API_KEY` guardada **solo en el servidor**. Nunca usar una variable `VITE_*` para secretos. Contrastar comentarios del modelo con análisis del motor y devolver explicaciones en español. Integrar el servicio tras cada jugada usando `AbortSignal` para cancelar solicitudes obsoletas.
+La etapa 2B conecta `ServerCoach` a la función `api/coach.ts` exclusivamente para consultas explícitas. La configuración privada, límites y presupuesto se documentan en [Configurar IA en Vercel](docs/ai-setup.md). No se realizan consultas de IA tras las jugadas ni al cargar la aplicación.
 
 ## Licencias del motor
 
@@ -80,7 +80,7 @@ Son umbrales heurísticos, no juicios definitivos: las búsquedas tienen presupu
 
 ### Revisión y rendimiento móvil
 
-Tocar una jugada del historial, **Revisar partida**, **Anterior** o **Siguiente** cambia solo la posición de revisión. El tablero histórico no permite jugar. Se muestran evaluaciones y clasificaciones por jugada y hasta cinco errores principales entre las posiciones ya analizadas (ordenados por gravedad y pérdida). **Volver a la partida** recupera la posición vigente; ni navegar ni pedir ayudas cambia el PGN, guardado o turno. Si el rival estaba pensando, su respuesta puede llegar mientras se revisa; la revisión conserva la posición elegida y la partida continúa guardándose normalmente.
+Tocar una jugada del historial, **Revisar partida**, **Anterior** o **Siguiente** cambia solo la posición de revisión. El tablero histórico no permite jugar. Se muestran evaluaciones y clasificaciones por jugada y hasta cinco errores principales entre las posiciones ya analizadas (ordenados por gravedad y pérdida). **Volver a la partida** recupera la posición vigente; ni navegar ni pedir ayudas cambia el PGN, guardado o turno. En la etapa 2B, entrar en Revisión pausa y cancela la respuesta del rival. Volver a Jugar reanuda la partida donde estaba, incluida una posible respuesta pendiente de negras.
 
 El analizador es independiente del Worker rival: un único Worker adicional, WASM de un hilo, Hash de 8 MB, una búsqueda cada vez, máximo solicitado `depth 12 nodes 20000 movetime 200`. Los límites de profundidad/nodos/tiempo terminan al primero que se alcanza. Tras cada búsqueda se cede una pausa de 120 ms, y navegar aplica un debounce de 150 ms. Se prioriza la posición visible y su anterior, luego la actual y las posiciones más recientes (hasta 256 por cola). La caché de sesión conserva hasta 256 posiciones, no se guarda en localStorage y se limpia al crear/recuperar una partida. Los historiales mayores pueden necesitar recalcular posiciones antiguas al revisarlas. El límite de Hash no representa toda la memoria WASM del Worker.
 
@@ -88,8 +88,18 @@ Cambiar posición, deshacer o cambiar partida termina el Worker de análisis; la
 
 ### Arquitectura para la etapa 2B
 
-`src/analysis.ts` contiene la normalización UCI, clasificación y explicaciones deterministas; `src/analyzer.ts` gestiona el Worker; `src/useAnalysis.ts` coordina prioridades/caché/cancelación y `src/Trainer.tsx` presenta las ayudas a demanda. El contrato `CoachService`, `CoachRequest`, `CoachAdvice` y el adaptador `ServerCoach` de `src/coach.ts` se conservan. En el futuro modo mixto, Stockfish seguirá siendo la fuente de evaluaciones y variantes; un backend seguro podrá enriquecer **solo las explicaciones solicitadas** mediante ese contrato. La etapa 2A no instancia `ServerCoach`, no consulta `/api/coach`, no realiza llamadas de pago y no utiliza claves.
+`src/analysis.ts` contiene la normalización UCI, clasificación y explicaciones deterministas; `src/analyzer.ts` gestiona el Worker; `src/useAnalysis.ts` coordina prioridades/caché/cancelación y `src/Trainer.tsx` presenta las ayudas a demanda. El contrato `CoachService`, `CoachRequest`, `CoachAdvice` y el adaptador `ServerCoach` de `src/coach.ts` se conservan. Stockfish sigue siendo la fuente de evaluaciones y variantes; la etapa 2B extiende ese contrato con nivel, pregunta, índices y evidencia del motor y añade el backend de explicaciones opcionales. `src/AICoach.tsx` gestiona consultas y cancelación; `server/` valida, limita consumo y consulta a OpenAI; `src/pgn.ts` gestiona archivos PGN.
 
 ### Verificación adicional con WebKit
 
 `npm run test:e2e` mantiene los tres perfiles Chromium para que funcione con las dependencias originales del proyecto. `npm run test:webkit` ejecuta la misma suite con WebKit y perfil iPad; requiere `npx playwright install --with-deps webkit` en un equipo con permisos de instalación. CI instala esas bibliotecas y ejecuta ambas suites. En el entorno de desarrollo de esta entrega WebKit se descargó, pero faltan bibliotecas GTK4/Graphene y otras dependencias del sistema y no hay permisos administrativos; por ello no se pudo validar localmente esta suite adicional. No se afirma haber probado Safari físico.
+
+
+## Etapa 2B: IA opcional y archivos de partidas
+
+- **Explicar con IA** y preguntas en español según nivel principiante/intermedio/avanzado. La explicación de la última jugada blanca se separa de los hechos del motor. Sin claves/configuración, Stockfish sigue disponible.
+- **Exportar PGN** y **Preparar partida para análisis** descargan la partida completa con cabeceras y nombre fechado, sin enviar nada automáticamente a ChatGPT.
+- **Importar PGN** valida antes de confirmar y abre un estudio en Revisión, guardado aparte. La partida contra Stockfish no se reemplaza; Jugar permite retomarla. No hay respuestas automáticas de negras en Revisión.
+- Las pruebas de servidor simulan OpenAI y Redis para validar autorizaciones, límites globales compartidos, errores y entradas; las pruebas de navegador también simulan la IA y usan Stockfish real. No consumen OpenAI.
+
+Consultar [Configuración privada, backend y presupuesto en Vercel](docs/ai-setup.md) y [Guardar, importar y compartir PGN desde Safari/iPad](docs/ipad-pgn.md). En Vercel se necesita el repositorio completo y `api/coach.ts` para la IA; un hosting exclusivamente estático conserva las funciones gratuitas.
