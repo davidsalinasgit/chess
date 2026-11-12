@@ -1,0 +1,2 @@
+import { defineConfig, devices } from '@playwright/test';
+export default defineConfig({ testDir: './tests', use: { channel: 'chromium', baseURL: 'http://127.0.0.1:4173' }, webServer: { command: 'npm run build && npm run preview -- --port 4173', port: 4173 }, projects: [{ name:'desktop', use: { ...devices['Desktop Chrome'] } }, { name:'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } }, { name:'tablet', use: { ...devices['iPad Pro 11'], defaultBrowserType: 'chromium' } }] });
