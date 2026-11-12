@@ -1,13 +1,14 @@
+import { AICoach } from './AICoach';
 import { useState } from 'react';
 import { classify, formatScore, hintIdea, san, type Evaluation, type Position } from './analysis';
-interface Props { timeline: Position[]; index: number; reviewing: boolean; results: Map<string,Evaluation>; error: string; retry:()=>void; navigate:(index:number|null)=>void; hidden:boolean; setHidden:(hidden:boolean)=>void }
+interface Props { pgn:string; timeline: Position[]; index: number; reviewing: boolean; results: Map<string,Evaluation>; error: string; retry:()=>void; navigate:(index:number|null)=>void; hidden:boolean; setHidden:(hidden:boolean)=>void }
 export function EvalBar({evaluation,hidden}:{evaluation?:Evaluation;hidden:boolean}) {
  const score = evaluation?.score;
  const percent = !score ? 50 : score.kind === 'mate' ? (score.value > 0 ? 100 : 0) : 50 + 45 * Math.tanh(score.value/400);
  if (hidden) return null;
  return <div className="evaluation" aria-label={`Evaluación desde blancas: ${formatScore(score)}`}><div className="eval-track"><div className="eval-white" style={{height:`${percent}%`}}/></div><span>{!score ? '…' : score.kind === 'mate' ? (score.value > 0 ? '+M' : '−M') : `${score.value >= 0 ? '+' : ''}${(score.value/100).toFixed(1)}`}</span></div>;
 }
-export function Trainer({timeline,index,reviewing,results,error,retry,navigate,hidden,setHidden}:Props) {
+export function Trainer({pgn,timeline,index,reviewing,results,error,retry,navigate,hidden,setHidden}:Props) {
  const [hint,setHint] = useState(false);
  const [idea,setIdea] = useState(false);
  const [detail,setDetail] = useState(false);
@@ -32,5 +33,6 @@ export function Trainer({timeline,index,reviewing,results,error,retry,navigate,h
   <div className="review-nav" aria-label="Revisión de partida"><button disabled={!index} onClick={()=>navigate(index-1)}>Anterior</button><span>{reviewing ? `Revisión ${index}/${timeline.length-1}` : 'Posición actual'}</span><button disabled={index===timeline.length-1} onClick={()=>navigate(index+1)}>Siguiente</button></div>
   {!reviewing && <button disabled={timeline.length<2} onClick={()=>navigate(timeline.length-1)}>Revisar partida</button>}
   {reviewing && <><button className="primary" onClick={()=>navigate(null)}>Volver a la partida</button><h3>Evaluaciones por jugada</h3><div className="review-list" aria-label="Evaluaciones del historial">{timeline.slice(1).map((p,j)=>{const i=j+1,b=results.get(timeline[i-1].fen),a=results.get(p.fen);return <button key={i} onClick={()=>navigate(i)} aria-current={i===index ? 'step' : undefined}>{Math.ceil(i/2)}{i%2 ? '.' : '…'} {p.move?.san} · {a && b && p.move ? classify(b,a,p.move).label : 'Pendiente'}{!hidden && ` · ${formatScore(a?.score)}`}</button>;})}</div><h3>Principales errores</h3>{mistakes.length ? <ul className="mistakes">{mistakes.map(m=><li key={m.i}><button onClick={()=>navigate(m.i)}>{Math.ceil(m.i/2)}{m.i%2 ? '.' : '…'} {m.move} · {m.v.label}{m.v.loss !== undefined ? ` (${m.v.loss} cp)` : ''}</button></li>)}</ul> : <p className="muted">Sin errores importantes entre las jugadas analizadas.</p>}<p className="muted">{timeline.filter(p=>results.has(p.fen)).length}/{timeline.length} posiciones analizadas. Las clasificaciones son orientativas.</p></>}
+  <AICoach pgn={pgn} timeline={timeline} index={index} reviewing={reviewing} results={results}/>
  </section>;
 }
