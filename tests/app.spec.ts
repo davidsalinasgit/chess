@@ -7,7 +7,7 @@ test('partida real, motor, guardado, deshacer, recuperación y exportación', as
  await square(page,'e2'); await square(page,'e4');
  await expect(page.getByText('e4', {exact:true})).toBeVisible();
  await expect(page.getByRole('status').filter({hasText: /^Tu turno · Blancas$/})).toBeVisible({timeout:30000});
- await expect(page.locator('.move > span').nth(2)).not.toHaveText('—');
+ await expect(page.locator('.move > button').nth(1)).not.toHaveText('—');
  await page.reload(); await expect(page.getByText('e4', {exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Deshacer turno'}).click();
  await expect(page.getByText('Tu primera jugada abre el camino.')).toBeVisible();

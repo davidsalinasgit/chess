@@ -18,7 +18,7 @@ Abrir la URL que muestra Vite. Para probar desde un iPhone o iPad en la misma re
 ```sh
 npm test
 npm run build
-npx playwright install chromium
+npx playwright install chromium webkit
 npm run test:e2e
 ```
 
@@ -58,3 +58,38 @@ El entrenador todavía no está conectado ni existe ese endpoint. En la segunda 
 ## Licencias del motor
 
 Stockfish.js se distribuye bajo GPL-3.0. El build incluye su licencia y un enlace al código fuente de la versión utilizada en `dist/stockfish/`. Conservar esos avisos al redistribuir. Fuente y scripts de compilación: https://github.com/nmrugg/stockfish.js/tree/v19.0.1 (paquete npm `stockfish@19.0.1`, sin modificaciones). Consultar esa licencia antes de redistribuir una versión modificada del motor.
+
+## Etapa 2A: entrenador con Stockfish (modo mixto)
+
+La barra discreta junto al tablero y el panel **Entrenador** actualizan la evaluación automáticamente. Todos los valores se muestran desde el punto de vista de blancas: +100 cp equivale aproximadamente a un peón de ventaja, negativo favorece a negras. La barra usa una escala visual saturada (no es una probabilidad de victoria); los mates aparecen como +M/−M y el panel indica el bando y distancia calculada. Un mate ya consumado se identifica sin inventar distancia. **Ocultar evaluación** elimina la barra y los valores automáticos; la preferencia se conserva en este navegador. Pistas y análisis siguen siendo acciones voluntarias.
+
+No se muestran recomendaciones ni comentarios detallados automáticamente durante la partida. **Pista** muestra la jugada SAN calculada en la posición visible sin ejecutarla; **Explicar idea** describe únicamente hechos legales verificables (captura, jaque, mate, enroque, promoción) y hasta cuatro medias jugadas de la variante principal. No atribuye objetivos estratégicos al motor. **Analizar jugada** muestra las evaluaciones antes/después de la última jugada de la posición visible, la pérdida estimada, clasificación y la recomendación que había calculado Stockfish antes de jugar. Los botones esperan resultados válidos; si falla el analizador aparece un reintento independiente del rival.
+
+### Criterio orientativo de clasificación
+
+Se compara la evaluación antes y después de cada media jugada, invirtiendo el signo para valorar las decisiones de negras: `max(0, (antes − después) × signoDelJugador)`. Las pequeñas ganancias por ruido de búsqueda se consideran pérdida cero. Si coincide exactamente con la primera jugada de la variante calculada, se etiqueta **Mejor jugada**. En otros casos:
+
+| Pérdida | Clasificación |
+| --- | --- |
+| 0–49 cp | Buena jugada |
+| 50–149 cp | Imprecisión |
+| 150–299 cp | Error |
+| 300 cp o más | Error grave |
+
+Son umbrales heurísticos, no juicios definitivos: las búsquedas tienen presupuesto breve y pueden alcanzar profundidades diferentes. Se descartan puntuaciones UCI con `lowerbound`/`upperbound` y PV secundarias. Los mates **no se convierten en centipeones**: perder un mate favorable detectado o permitir un nuevo mate en contra se señala como error grave, sin una pérdida ficticia en cp. Si el mate del mismo bando persiste no se penalizan cambios de distancia; salvo coincidencia con la mejor jugada se muestra **Sin clasificación en cp**. Detectar un mate depende del horizonte del motor. Los finales y las tablas, incluida triple repetición reconstruida desde el historial, se reconocen con chess.js.
+
+### Revisión y rendimiento móvil
+
+Tocar una jugada del historial, **Revisar partida**, **Anterior** o **Siguiente** cambia solo la posición de revisión. El tablero histórico no permite jugar. Se muestran evaluaciones y clasificaciones por jugada y hasta cinco errores principales entre las posiciones ya analizadas (ordenados por gravedad y pérdida). **Volver a la partida** recupera la posición vigente; ni navegar ni pedir ayudas cambia el PGN, guardado o turno. Si el rival estaba pensando, su respuesta puede llegar mientras se revisa; la revisión conserva la posición elegida y la partida continúa guardándose normalmente.
+
+El analizador es independiente del Worker rival: un único Worker adicional, WASM de un hilo, Hash de 8 MB, una búsqueda cada vez, máximo solicitado `depth 12 nodes 20000 movetime 200`. Los límites de profundidad/nodos/tiempo terminan al primero que se alcanza. Tras cada búsqueda se cede una pausa de 120 ms, y navegar aplica un debounce de 150 ms. Se prioriza la posición visible y su anterior, luego la actual y las posiciones más recientes (hasta 256 por cola). La caché de sesión conserva hasta 256 posiciones, no se guarda en localStorage y se limpia al crear/recuperar una partida. Los historiales mayores pueden necesitar recalcular posiciones antiguas al revisarlas. El límite de Hash no representa toda la memoria WASM del Worker.
+
+Cambiar posición, deshacer o cambiar partida termina el Worker de análisis; las respuestas obsoletas no se publican. Al acabar la cola también se termina. El rival conserva su presupuesto y dificultad propios. No se añaden hilos WASM, SharedArrayBuffer ni requisitos de COOP/COEP; se mantienen toque y arrastre. Las pruebas móviles automatizadas usan emulación; comprobar Safari real en el iPad de destino sigue siendo parte de la revisión previa a producción.
+
+### Arquitectura para la etapa 2B
+
+`src/analysis.ts` contiene la normalización UCI, clasificación y explicaciones deterministas; `src/analyzer.ts` gestiona el Worker; `src/useAnalysis.ts` coordina prioridades/caché/cancelación y `src/Trainer.tsx` presenta las ayudas a demanda. El contrato `CoachService`, `CoachRequest`, `CoachAdvice` y el adaptador `ServerCoach` de `src/coach.ts` se conservan. En el futuro modo mixto, Stockfish seguirá siendo la fuente de evaluaciones y variantes; un backend seguro podrá enriquecer **solo las explicaciones solicitadas** mediante ese contrato. La etapa 2A no instancia `ServerCoach`, no consulta `/api/coach`, no realiza llamadas de pago y no utiliza claves.
+
+### Verificación adicional con WebKit
+
+`npm run test:e2e` mantiene los tres perfiles Chromium para que funcione con las dependencias originales del proyecto. `npm run test:webkit` ejecuta la misma suite con WebKit y perfil iPad; requiere `npx playwright install --with-deps webkit` en un equipo con permisos de instalación. CI instala esas bibliotecas y ejecuta ambas suites. En el entorno de desarrollo de esta entrega WebKit se descargó, pero faltan bibliotecas GTK4/Graphene y otras dependencias del sistema y no hay permisos administrativos; por ello no se pudo validar localmente esta suite adicional. No se afirma haber probado Safari físico.
