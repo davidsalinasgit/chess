@@ -71,7 +71,7 @@ function App() {
  async function readImport(file:File|undefined) {
   const generation=++fileGeneration.current;setImportError('');if(!file)return;
   if(file.size>MAX_PGN_BYTES){setImportError('El PGN supera el límite de 256 KB.');return;}
-  try{const candidate=importPgn(await file.text());if(generation===fileGeneration.current)setPendingImport(candidate);}catch(e){if(generation===fileGeneration.current)setImportError(e instanceof Error?e.message:'No se pudo leer el archivo.');}
+  try{const candidate=importPgn(await file.text());if(generation===fileGeneration.current)setPendingImport(candidate);}catch(e){if(generation===fileGeneration.current)setImportError(e instanceof DOMException?'No se pudo leer el archivo. Vuelve a seleccionarlo en Archivos.':e instanceof Error?e.message:'No se pudo leer el archivo.');}
  }
  function acceptImport() {
   if(!pendingImport)return;

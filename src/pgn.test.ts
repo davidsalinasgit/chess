@@ -18,6 +18,6 @@ describe('gestión PGN sin pérdida de jugadas',()=>{
  });
  it('conserva resultados declarados por abandono y metadatos de fecha',()=>{const g=importPgn('[Result "1-0"]\n\n1. e4 e5 1-0');expect(importPgn(exportPgn(g).text).getHeaders().Result).toBe('1-0');stampGame(g,new Date(2026,0,2));expect(g.getHeaders().Date).toBe('2026.01.02');expect(localDate(new Date(2026,0,2,3,4)).stamp).toBe('2026-01-02-0304');});
  it('rechaza entrada vacía, ilegal, grande, múltiples partidas y variantes sin truncar',()=>{
-  for(const bad of ['', 'hola', '1. e4 e5 2. Ke3 *','x'.repeat(262145),'[Event "A"]\n1. e4 *\n[Event "B"]\n1. d4 *','1. e4 (1. d4 d5) e5 *'])expect(()=>importPgn(bad)).toThrow();
+  for(const bad of ['', 'hola', '1. e4 e5 2. Ke3 *','x'.repeat(262145),'1. e4 {'+'a'.repeat(262120)+'} *','[Event "A"]\n1. e4 *\n[Event "B"]\n1. d4 *','1. e4 (1. d4 d5) e5 *'])expect(()=>importPgn(bad)).toThrow();
  });
 });

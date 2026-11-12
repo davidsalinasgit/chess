@@ -1,7 +1,8 @@
 import { test,expect,type Page } from '@playwright/test';
 import { Chess } from 'chess.js';
+import { OPENING_FEN } from '../src/game';
 const imported='[Event "Mi estudio"]\n[White "Ana"]\n[Black "Luis"]\n[Date "2026.11.11"]\n\n1. d4 d5 2. c4 *';
-const saved=(page:Page)=>page.evaluate(()=>localStorage.getItem('chess-coach.v1'));
+const saved=async(page:Page)=>{await expect.poll(()=>page.evaluate(()=>localStorage.getItem('chess-coach.v1'))).not.toBeNull();return page.evaluate(()=>localStorage.getItem('chess-coach.v1'));};
 async function readDownload(download:import('@playwright/test').Download){const stream=await download.createReadStream();const chunks:Buffer[]=[];for await(const chunk of stream!)chunks.push(Buffer.from(chunk));return Buffer.concat(chunks).toString('utf8');}
 test('importa y recupera un PGN separado, conserva partida y exporta íntegramente',async({page})=>{
  await page.addInitScript(()=>{
@@ -9,6 +10,7 @@ test('importa y recupera un PGN separado, conserva partida y exporta íntegramen
   window.Worker=class extends Native{postMessage(message:unknown){if(typeof message==='string'&&message.startsWith('go movetime '))counts.rival++;super.postMessage(message);}};
  });
  await page.goto('/');await page.getByRole('button',{name:'Recuperar la apertura',exact:true}).click();await page.getByRole('button',{name:'Continuar',exact:true}).click();
+ await expect.poll(async()=>JSON.parse((await saved(page))!).fen).toBe(OPENING_FEN);
  const live=await saved(page);
  await page.getByLabel('Archivo PGN',{exact:true}).setInputFiles({name:'estudio.pgn',mimeType:'application/x-chess-pgn',buffer:Buffer.from(imported)});
  await expect(page.getByRole('dialog')).toBeVisible();expect(await saved(page)).toBe(live);

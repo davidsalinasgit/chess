@@ -25,6 +25,7 @@ export function importPgn(text:string):Chess {
   const declared = game.getHeaders().Result;
   if (declared && !['*','1-0','0-1','1/2-1/2'].includes(declared)) throw Error();
   if (game.isCheckmate() && declared && declared !== '*' && declared !== (game.turn()==='w'?'0-1':'1-0')) throw Error();
+  if(new TextEncoder().encode(game.pgn()).length>MAX_PGN_BYTES)throw Error();
   return game;
  } catch { throw new Error('PGN inválido: revisa la notación, las jugadas legales y el resultado de la partida.'); }
 }
